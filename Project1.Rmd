@@ -2,7 +2,12 @@
 title: "Good Exercise Prediction"
 author: "Daniel Rosquete"
 date: "May 9, 2016"
-output: html_document
+output: 
+  html_document: 
+    fig_caption: yes
+    highlight: tango
+    self_contained: no
+    theme: journal
 ---
 # Summary
 One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
@@ -96,7 +101,7 @@ plot(sensorModel, metric = "Accuracy")
 
 ## Testing the model
 
-The model should be tested first with the testing set extracted from the full training set, equivalent to the 20% of it. So, we execute the predict and then, evaluate the confusion matrix, it throws a 99.85% of accuracy with a confident interval of 99.6 to 99.9, a P-Value lower than 2.2 e-16. So the results are really really good and not perfect
+The model should be tested first with the testing set extracted from the full training set, equivalent to the 20% of it. So, we execute the predict and then, evaluate the confusion matrix, it throws a 99.85% of accuracy with a confidence interval of 99.6 to 99.9, a P-Value lower than 2.2 e-16. So the results are really really good and not perfect
 
 Finally, the results obtained for the real test set are:
 
