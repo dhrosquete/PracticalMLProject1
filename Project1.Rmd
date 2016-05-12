@@ -1,0 +1,111 @@
+---
+title: "Good Exercise Prediction"
+author: "Daniel Rosquete"
+date: "May 9, 2016"
+output: html_document
+---
+# Summary
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+## Loading the Data
+
+In order to load the data, the first thing to do is load the libraries, then set a seed, in this case is 3112. After that, setting the workfolder and asking if the files exists, if they don´t, then download them.
+```{r message=FALSE}
+library(caret)
+library(AppliedPredictiveModeling)
+library(doParallel)
+library(randomForest)
+
+# Setting the seed
+set.seed(3112)
+
+# Setting the working directory
+setwd("C:/Users/Daniel/MachineLearning/Data Science/7 - Practical ML/4 - Regresion regularizada/PredictionProject1/")
+
+# Validating if the files exists, if not, download them
+if(!file.exists("pml-training.csv"))
+{
+    download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile = "pml-training.csv")
+}
+sensorTrainData <- read.csv(file = "pml-training.csv",header = TRUE)
+
+if(!file.exists("pml-testing.csv"))
+{
+    download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile = "pml-testing.csv")
+}
+sensorTestData <- read.csv(file="pml-testing.csv",header=TRUE)
+```
+
+## Cleaning the Data
+The first step was to remove the timestamps and names in the first 7 rows, because they don´t look relevant for doing predictions. Also, I removed 5 columns which their values looks pretty much empty, so I supposed they were going to interfere in the calculations.
+Finally, I created a function to extract only the non-NA values to make an index called notNATrain and notNATest
+```{r}
+sensorTrainData <- sensorTrainData[-1:-7] #Removing timeStamps
+sensorTrainData <- sensorTrainData[-5:-10] #Removing values usually in blank
+sensorTestData <- sensorTestData[-1:-7]
+sensorTestData <- sensorTestData[-5:-10]
+notNATrain <- sapply(sensorTrainData, function(x)all(!is.na(x)))
+notNATest <- sapply(sensorTestData, function(x)all(!is.na(x)))
+```
+
+## Splitting the Data
+
+First, there is a data partition for the 80% of the total data. After that, I applied the partitioning using the notNA index calculated before and the new index, so I could split easily and double binded.
+
+After that, I calculated the columns that are not relevant for the model, using the near zero variance technique. This reduced the features from 147, to 53, so it can be calculated faster; then, this new index is applied to the training and testing set to create the model.
+
+```{r}
+inTrain = createDataPartition(sensorTrainData$classe, p = 0.8, list = FALSE)
+training <- sensorTrainData[inTrain,notNATrain]
+testing <- sensorTrainData[-inTrain,notNATrain]
+sensorTestData <- sensorTestData[,notNATest]
+
+uselessCols <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[,!uselessCols$nzv== TRUE]
+testing <- testing[,!uselessCols$nzv== TRUE]
+```
+
+## Training the model
+
+```{r echo=FALSE}
+load("sensorModel.RData")
+```
+
+The first step is to parallelize, because creating this model could really take long long time, so, in my case, I have a 8 core CPU and 8 GB of RAM, so I´m taking advantage of it to process the data.
+
+The method used for the model is random forest, due to the characteristics of the outcome. Also, inside the training, is the training control (trControl), where I choosed to make a repeated cross validation with 5 folds, done 5 times, this could be overfitting, however, the results are pretty good when tested.
+
+```{r eval=FALSE}
+cl <- makeCluster(detectCores())
+registerDoParallel(cl = cl)
+sensorModel <- train(classe~., data=training, method="rf", verbose=FALSE,
+                     trControl = trainControl(method="repeatedcv", number = 5,
+                                              repeats = 5),
+                     allowParallel = TRUE)
+stopCluster(cl)
+#Backup the model
+save(sensorModel,file = "sensorModel.RData")
+sensorModel
+```
+
+Looking at the figure, you can see that, the actually needed predictors (features), are about 30, the rest just loses accuracy, but that´s ok, we don´t want any overfitted models!
+```{r}
+trellis.par.set(caretTheme())
+plot(sensorModel, metric = "Accuracy")
+```
+
+## Testing the model
+
+The model should be tested first with the testing set extracted from the full training set, equivalent to the 20% of it. So, we execute the predict and then, evaluate the confusion matrix, it throws a 99.85% of accuracy with a confident interval of 99.6 to 99.9, a P-Value lower than 2.2 e-16. So the results are really really good and not perfect
+
+Finally, the results obtained for the real test set are:
+
+B A B A A E D B A A B C B A E E A B B B
+
+```{r }
+rfResult <- predict(sensorModel, testing)
+confusionMatrix(testing$classe, rfResult)
+
+# Predicting the final test set
+predict(sensorModel, sensorTestData)
+```
